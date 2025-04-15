@@ -70,6 +70,8 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# CSRF settings
+CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'https://localhost:5173']
 ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [

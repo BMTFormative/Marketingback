@@ -3,77 +3,86 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from ..authentication import CsrfExemptSessionAuthentication
+from rest_framework.authentication import TokenAuthentication
 
 from django.conf import settings
 import os
 import uuid
+import logging
 
 from ..models import CsvUpload
 from ..serializers import CsvUploadSerializer
 from ..csv_processor import CSVProcessor
 
-
+# Set up logging
 class UploadCsvView(APIView):
     """
     API view for uploading CSV files
     """
     permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication, CsrfExemptSessionAuthentication]
     parser_classes = [MultiPartParser, FormParser]
-    
     def get(self, request):
-        """
-        Return information about CSV upload functionality
-        """
+        """Return information about CSV upload functionality"""
         return Response({
             'message': 'Use POST method to upload a CSV file',
             'allowed_formats': 'csv',
             'max_size': '10MB'
         })
-    
     def post(self, request):
-        # Get file from request
-        csv_file = request.FILES.get('file')
-        if not csv_file:
-            return Response(
-                {'error': 'No file provided'}, 
-                status=status.HTTP_400_BAD_REQUEST
+        try:
+            # Get file from request
+            csv_file = request.FILES.get('file')
+            if not csv_file:
+                return Response(
+                    {'error': 'No file provided'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check file extension
+            if not csv_file.name.endswith('.csv'):
+                return Response(
+                    {'error': 'Only CSV files are allowed'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create upload directory if it doesn't exist
+            upload_dir = settings.UPLOAD_DIR
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            # Generate unique filename to prevent overwrites
+            unique_filename = f"{uuid.uuid4()}_{csv_file.name}"
+            file_path = os.path.join(upload_dir, unique_filename)
+            
+            # Save the file
+            with open(file_path, 'wb+') as destination:
+                for chunk in csv_file.chunks():
+                    destination.write(chunk)
+            
+            # Create CSV upload record
+            csv_upload = CsvUpload.objects.create(
+                user=request.user,
+                filename=csv_file.name,
+                file_path=file_path,
+                processed=False
             )
-        
-        # Check file extension
-        if not csv_file.name.endswith('.csv'):
+            
+            # Process the file
+            processor = CSVProcessor(csv_upload.id)
+            processor.process()
+            
+            # Return the CSV upload record
+            serializer = CsvUploadSerializer(csv_upload)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
             return Response(
-                {'error': 'Only CSV files are allowed'}, 
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': f'Upload failed: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
-        # Create upload directory if it doesn't exist
-        upload_dir = settings.UPLOAD_DIR
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        # Generate unique filename to prevent overwrites
-        unique_filename = f"{uuid.uuid4()}_{csv_file.name}"
-        file_path = os.path.join(upload_dir, unique_filename)
-        
-        # Save the file
-        with open(file_path, 'wb+') as destination:
-            for chunk in csv_file.chunks():
-                destination.write(chunk)
-        
-        # Create CSV upload record
-        csv_upload = CsvUpload.objects.create(
-            user=request.user,
-            filename=csv_file.name,
-            file_path=file_path,
-            processed=False
-        )
-        
-        # Process the file (in a real application, use a task queue like Celery)
-        processor = CSVProcessor(csv_upload.id)
-        processor.process()
-        
-        # Return the CSV upload record
-        serializer = CsvUploadSerializer(csv_upload)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class ProcessCsvView(APIView):

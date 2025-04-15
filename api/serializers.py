@@ -57,8 +57,8 @@ class CampaignSerializer(serializers.ModelSerializer):
 class CsvUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = CsvUpload
-        fields = ['id', 'filename', 'file', 'processed', 'row_count', 'user', 'uploaded_at', 'processed_at']
-        read_only_fields = ['user', 'processed', 'row_count', 'uploaded_at', 'processed_at']
+        fields = ['id', 'filename', 'file_path', 'processed', 'row_count', 'uploaded_at', 'processed_at']
+        read_only_fields = ['user', 'processed', 'row_count', 'uploaded_at', 'processed_at', 'file_path']
         
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user

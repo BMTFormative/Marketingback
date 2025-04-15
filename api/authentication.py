@@ -4,9 +4,14 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import authenticate, login, logout
 from django.utils import timezone
+from rest_framework.authentication import SessionAuthentication
 
 from .serializers import UserSerializer, UserRegistrationSerializer
 
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        # Do not enforce CSRF
+        return
 class RegisterView(APIView):
     """
     API endpoint for user registration
