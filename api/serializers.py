@@ -68,7 +68,7 @@ class MarketingMetricSerializer(serializers.ModelSerializer):
     class Meta:
         model = MarketingMetric
         fields = ['id', 'platform', 'date', 'campaign_name', 'impressions', 'clicks', 'conversions', 
-                 'cost', 'revenue', 'ctr', 'conversion_rate', 'cpc', 'cpa', 'roas', 
+                 'cost', 'revenue', 'roi', 'ctr', 'conversion_rate', 'cost_per_click', 'cost_per_conversion', 
                  'user', 'csv_upload', 'created_at', 'updated_at']
         read_only_fields = ['user', 'created_at', 'updated_at']
         

@@ -13,7 +13,7 @@ class RegisterView(APIView):
     """
     permission_classes = [AllowAny]
     
-    def post(self, request):
+    def post(self, request, format=None):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -26,7 +26,7 @@ class LoginView(APIView):
     """
     permission_classes = [AllowAny]
     
-    def post(self, request):
+    def post(self, request, format=None):
         username = request.data.get('username')
         password = request.data.get('password')
         
@@ -51,7 +51,7 @@ class LogoutView(APIView):
     """
     permission_classes = [IsAuthenticated]
     
-    def post(self, request):
+    def post(self, request, format=None):
         logout(request)
         return Response(status=status.HTTP_200_OK)
 
@@ -61,6 +61,6 @@ class CurrentUserView(APIView):
     """
     permission_classes = [IsAuthenticated]
     
-    def get(self, request):
+    def get(self, request, format=None):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
