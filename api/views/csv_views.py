@@ -1,0 +1,112 @@
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
+
+from django.conf import settings
+import os
+import uuid
+
+from ..models import CsvUpload
+from ..serializers import CsvUploadSerializer
+from ..csv_processor import CSVProcessor
+
+
+class UploadCsvView(APIView):
+    """
+    API view for uploading CSV files
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def post(self, request):
+        # Get file from request
+        csv_file = request.FILES.get('file')
+        if not csv_file:
+            return Response(
+                {'error': 'No file provided'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check file extension
+        if not csv_file.name.endswith('.csv'):
+            return Response(
+                {'error': 'Only CSV files are allowed'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create upload directory if it doesn't exist
+        upload_dir = settings.UPLOAD_DIR
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename to prevent overwrites
+        unique_filename = f"{uuid.uuid4()}_{csv_file.name}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save the file
+        with open(file_path, 'wb+') as destination:
+            for chunk in csv_file.chunks():
+                destination.write(chunk)
+        
+        # Create CSV upload record
+        csv_upload = CsvUpload.objects.create(
+            user=request.user,
+            filename=csv_file.name,
+            file_path=file_path,
+            processed=False
+        )
+        
+        # Process the file (in a real application, use a task queue like Celery)
+        processor = CSVProcessor(csv_upload.id)
+        processor.process()
+        
+        # Return the CSV upload record
+        serializer = CsvUploadSerializer(csv_upload)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ProcessCsvView(APIView):
+    """
+    API view for processing an existing CSV file
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, pk):
+        try:
+            # Get the CSV upload record
+            csv_upload = CsvUpload.objects.get(pk=pk)
+            
+            # Check ownership
+            if csv_upload.user != request.user and not request.user.is_staff:
+                return Response(
+                    {'error': 'You do not have permission to process this file'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Process the file
+            processor = CSVProcessor(csv_upload.id)
+            success, message = processor.process()
+            
+            if success:
+                serializer = CsvUploadSerializer(csv_upload)
+                return Response({
+                    'message': message,
+                    'csv_upload': serializer.data
+                })
+            else:
+                return Response(
+                    {'error': message}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        except CsvUpload.DoesNotExist:
+            return Response(
+                {'error': 'CSV upload not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
