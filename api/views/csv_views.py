@@ -20,6 +20,16 @@ class UploadCsvView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
     
+    def get(self, request):
+        """
+        Return information about CSV upload functionality
+        """
+        return Response({
+            'message': 'Use POST method to upload a CSV file',
+            'allowed_formats': 'csv',
+            'max_size': '10MB'
+        })
+    
     def post(self, request):
         # Get file from request
         csv_file = request.FILES.get('file')
