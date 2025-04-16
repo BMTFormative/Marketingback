@@ -55,10 +55,24 @@ class CampaignSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class CsvUploadSerializer(serializers.ModelSerializer):
+    formatted_uploaded_at = serializers.SerializerMethodField()
+    formatted_processed_at = serializers.SerializerMethodField()
+    
     class Meta:
         model = CsvUpload
-        fields = ['id', 'filename', 'file_path', 'processed', 'row_count', 'uploaded_at', 'processed_at']
-        read_only_fields = ['user', 'processed', 'row_count', 'uploaded_at', 'processed_at', 'file_path']
+        fields = ['id', 'filename', 'file_path', 'processed', 'row_count', 'user', 
+                  'uploaded_at', 'processed_at', 'formatted_uploaded_at', 'formatted_processed_at']
+        read_only_fields = ['user', 'processed', 'row_count', 'uploaded_at', 'processed_at']
+    
+    def get_formatted_uploaded_at(self, obj):
+        if obj.uploaded_at:
+            return obj.uploaded_at.strftime("%B %d, %Y %H:%M")
+        return None
+    
+    def get_formatted_processed_at(self, obj):
+        if obj.processed_at:
+            return obj.processed_at.strftime("%B %d, %Y %H:%M")
+        return None
         
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user

@@ -11,13 +11,11 @@ from rest_framework.authentication import TokenAuthentication
 from django.conf import settings
 import os
 import uuid
-import logging
 
 from ..models import CsvUpload
 from ..serializers import CsvUploadSerializer
 from ..csv_processor import CSVProcessor
 
-# Set up logging
 class UploadCsvView(APIView):
     """
     API view for uploading CSV files
@@ -25,13 +23,20 @@ class UploadCsvView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication, CsrfExemptSessionAuthentication]
     parser_classes = [MultiPartParser, FormParser]
+    
     def get(self, request):
-        """Return information about CSV upload functionality"""
+        """Return information about CSV upload functionality and list of uploads"""
+        # Get user's CSV uploads
+        csv_uploads = CsvUpload.objects.filter(user=request.user).order_by('-uploaded_at')
+        serializer = CsvUploadSerializer(csv_uploads, many=True)
+        
         return Response({
             'message': 'Use POST method to upload a CSV file',
             'allowed_formats': 'csv',
-            'max_size': '10MB'
+            'max_size': '10MB',
+            'uploads': serializer.data
         })
+    
     def post(self, request):
         try:
             # Get file from request
@@ -83,7 +88,41 @@ class UploadCsvView(APIView):
                 {'error': f'Upload failed: {str(e)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
+    
+    def delete(self, request, pk=None):
+        try:
+            # Get the CSV upload record
+            csv_upload = CsvUpload.objects.get(pk=pk)
+            
+            # Check ownership
+            if csv_upload.user != request.user and not request.user.is_staff:
+                return Response(
+                    {'error': 'You do not have permission to delete this file'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Delete the physical file
+            if csv_upload.file_path and os.path.exists(csv_upload.file_path):
+                os.remove(csv_upload.file_path)
+            
+            # Delete the record
+            csv_upload.delete()
+            
+            return Response(
+                {'message': 'File deleted successfully'}, 
+                status=status.HTTP_200_OK
+            )
+                
+        except CsvUpload.DoesNotExist:
+            return Response(
+                {'error': 'CSV upload not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class ProcessCsvView(APIView):
     """
