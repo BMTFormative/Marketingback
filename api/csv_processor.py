@@ -181,10 +181,10 @@ class CSVProcessor:
                     conversions=conversions,
                     cost=Decimal(str(cost)),
                     revenue=Decimal(str(revenue)),
-                    click_through_rate=Decimal(str(round(ctr, 2))),
+                    ctr=Decimal(str(round(ctr, 2))),             # Changed from click_through_rate
                     conversion_rate=Decimal(str(round(cvr, 2))),
                     roi=Decimal(str(round(roi, 2))),
-                    average_cpc=Decimal(str(round(cpc, 2)))
+                    cost_per_click=Decimal(str(round(cpc, 2)))   # Changed from average_cpc
                 )
                 
                 self.metrics_created += 1
