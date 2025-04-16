@@ -77,12 +77,15 @@ class UploadCsvView(APIView):
             
             # Process the file
             processor = CSVProcessor(csv_upload.id)
-            processor.process()
+            success, message = processor.process()
+            
+            # Refresh the CSV upload record to get updated fields
+            csv_upload.refresh_from_db()
             
             # Return the CSV upload record
             serializer = CsvUploadSerializer(csv_upload)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-            
+                
         except Exception as e:
             return Response(
                 {'error': f'Upload failed: {str(e)}'}, 
